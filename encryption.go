@@ -40,7 +40,7 @@ const (
 	Hex
 )
 
-func Encrypt(multiple cryptoType, data, key, iv []byte, mode mode, padding padding) ([]byte, error) {
+func Encrypt(multiple cryptoType, plainText, key, iv []byte, mode mode, padding padding) ([]byte, error) {
 	var block cipher.Block
 	var err error
 
@@ -60,42 +60,45 @@ func Encrypt(multiple cryptoType, data, key, iv []byte, mode mode, padding paddi
 	}
 	bs := block.BlockSize()
 
+	var plainPadding []byte
 	switch padding {
 	case Zero:
-		data = ZeroPadding(data, bs)
+		plainPadding = ZeroPadding(plainText, bs)
 	case Pkcs5:
-		data = Pkcs5Padding(data)
+		plainPadding = Pkcs5Padding(plainText)
 	case Pkcs7:
-		data = Pkcs7Padding(data, bs)
+		plainPadding = Pkcs7Padding(plainText, bs)
+	default:
+		plainPadding=plainText
 	}
-	if len(data)%bs != 0 {
-		return nil, errors.New(fmt.Sprintf("the length of the completed data must be an integer multiple of the block, data size is %d, block size is %d", len(data), bs))
+	if len(plainPadding)%bs != 0 {
+		return nil, errors.New(fmt.Sprintf("the length of the completed data must be an integer multiple of the block, the completed data size is %d, block size is %d", len(plainPadding), bs))
 	}
 
-	cryptText := make([]byte, len(data))
+	cryptText := make([]byte, len(plainPadding))
 	switch mode {
 	case ECB:
 		dst := cryptText
-		for len(data) > 0 {
+		for len(plainPadding) > 0 {
 			//Encrypt加密第一个块，将其结果保存到dst
-			block.Encrypt(dst, data[:bs])
-			data = data[bs:]
+			block.Encrypt(dst, plainPadding[:bs])
+			plainPadding = plainPadding[bs:]
 			dst = dst[bs:]
 		}
 	case CBC:
-		cipher.NewCBCEncrypter(block, iv).CryptBlocks(cryptText, data)
+		cipher.NewCBCEncrypter(block, iv).CryptBlocks(cryptText, plainPadding)
 	case CFB:
-		cipher.NewCFBEncrypter(block, iv).XORKeyStream(cryptText, data)
+		cipher.NewCFBEncrypter(block, iv).XORKeyStream(cryptText, plainPadding)
 	case OFB:
-		cipher.NewOFB(block, iv).XORKeyStream(cryptText, data)
+		cipher.NewOFB(block, iv).XORKeyStream(cryptText, plainPadding)
 	case CTR:
-		cipher.NewCTR(block, iv).XORKeyStream(cryptText, data)
+		cipher.NewCTR(block, iv).XORKeyStream(cryptText, plainPadding)
 	}
 
 	return cryptText, nil
 }
 
-func Decrypt(multiple cryptoType, data, key, iv []byte, mode mode, padding padding) ([]byte, error) {
+func Decrypt(multiple cryptoType, cipherText, key, iv []byte, mode mode, padding padding) ([]byte, error) {
 	var block cipher.Block
 	var err error
 
@@ -111,28 +114,28 @@ func Decrypt(multiple cryptoType, data, key, iv []byte, mode mode, padding paddi
 		return nil, err
 	}
 	bs := block.BlockSize()
-	if len(data)%bs != 0 {
+	if len(cipherText)%bs != 0 {
 		return nil, errors.New(fmt.Sprintf("improper decrypt type, block size is %d", bs))
 	}
 
-	dst := make([]byte, len(data))
+	dst := make([]byte, len(cipherText))
 
 	switch mode {
 	case ECB:
 		dstTmp := dst
-		for len(data) > 0 {
-			block.Decrypt(dstTmp, data[:bs])
-			data = data[bs:]
+		for len(cipherText) > 0 {
+			block.Decrypt(dstTmp, cipherText[:bs])
+			cipherText = cipherText[bs:]
 			dstTmp = dstTmp[bs:]
 		}
 	case CBC:
-		cipher.NewCBCDecrypter(block, iv).CryptBlocks(dst, data)
+		cipher.NewCBCDecrypter(block, iv).CryptBlocks(dst, cipherText)
 	case CFB:
-		cipher.NewCFBDecrypter(block, iv).XORKeyStream(dst, data)
+		cipher.NewCFBDecrypter(block, iv).XORKeyStream(dst, cipherText)
 	case OFB:
-		cipher.NewOFB(block, iv).XORKeyStream(dst, data)
+		cipher.NewOFB(block, iv).XORKeyStream(dst, cipherText)
 	case CTR:
-		cipher.NewCTR(block, iv).XORKeyStream(dst, data)
+		cipher.NewCTR(block, iv).XORKeyStream(dst, cipherText)
 	}
 
 	switch padding {
@@ -147,13 +150,13 @@ func Decrypt(multiple cryptoType, data, key, iv []byte, mode mode, padding paddi
 }
 
 // easyType:cryptoType/mode/padding/transcode
-func EasyEncrypt(easyType, data, key, iv string) (string, error) {
+func EasyEncrypt(easyType, plainText, key, iv string) (string, error) {
 	c, m, p, t, err := easyCheck(easyType)
 	if err != nil {
 		return "", err
 	}
 
-	rs, err := Encrypt(c, []byte(data), []byte(key), []byte(iv), m, p)
+	rs, err := Encrypt(c, []byte(plainText), []byte(key), []byte(iv), m, p)
 	if err != nil {
 		return "", err
 	}
@@ -164,11 +167,11 @@ func EasyEncrypt(easyType, data, key, iv string) (string, error) {
 	case Hex:
 		return HexEncode(rs), nil
 	default:
-		return "", errors.New("easyType's fourth value must be one of [Base64,Hex]")
+		return string(rs), nil
 	}
 }
 
-func EasyDecrypt(easyType, data, key, iv string) (string, error) {
+func EasyDecrypt(easyType, cipherText, key, iv string) (string, error) {
 	c, m, p, t, err := easyCheck(easyType)
 	if err != nil {
 		return "", err
@@ -176,11 +179,11 @@ func EasyDecrypt(easyType, data, key, iv string) (string, error) {
 	var source []byte
 	switch t {
 	case Base64:
-		source, err = Base64Decode(data)
+		source, err = Base64Decode(cipherText)
 	case Hex:
-		source, err = HexDecode(data)
+		source, err = HexDecode(cipherText)
 	default:
-		return "", errors.New("easyType's fourth value must be one of [Base64,Hex]")
+		source=[]byte(cipherText)
 	}
 	if err != nil {
 		return "", err

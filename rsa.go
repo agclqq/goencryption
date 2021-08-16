@@ -62,14 +62,14 @@ func GenPubKeyFromPrvKey(prvKey []byte) ([]byte, error) {
 }
 
 //public key encryption
-func PubKeyEncrypt(pubKey, msg []byte) ([]byte, error) {
+func PubKeyEncrypt(pubKey, plainText []byte) ([]byte, error) {
 	block, _ := pem.Decode(pubKey)
 	publicKeyInterface, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
 		return nil, err
 	}
 	publicKey := publicKeyInterface.(*rsa.PublicKey)
-	rs, err := rsa.EncryptPKCS1v15(rand.Reader, publicKey, msg)
+	rs, err := rsa.EncryptPKCS1v15(rand.Reader, publicKey, plainText)
 	return rs, err
 }
 //private key decryption
@@ -85,7 +85,7 @@ func PrvKeyDecrypt(prvKey, cipherText []byte) ([]byte, error) {
 }
 
 //private key signature
-func PrvKeySign(prvKey, msg []byte, hash crypto.Hash) ([]byte, error) {
+func PrvKeySign(prvKey, plainText []byte, hash crypto.Hash) ([]byte, error) {
 	block, _ := pem.Decode(prvKey)
 	privateKey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
 	if err != nil {
@@ -93,14 +93,14 @@ func PrvKeySign(prvKey, msg []byte, hash crypto.Hash) ([]byte, error) {
 	}
 
 	hashInst := hash.New()
-	hashInst.Write(msg)
+	hashInst.Write(plainText)
 	hashByte := hashInst.Sum(nil)
 
 	rs, err := rsa.SignPKCS1v15(rand.Reader, privateKey, hash, hashByte)
 	return rs, err
 }
 //public key verification signature
-func PubKeyVerifySign(pubKey, msg, sign []byte, hash crypto.Hash) error {
+func PubKeyVerifySign(pubKey, plainText, sign []byte, hash crypto.Hash) error {
 	block, _ := pem.Decode(pubKey)
 	publicKeyInterface, err := x509.ParsePKIXPublicKey(block.Bytes)
 	if err != nil {
@@ -108,7 +108,7 @@ func PubKeyVerifySign(pubKey, msg, sign []byte, hash crypto.Hash) error {
 	}
 	publicKey := publicKeyInterface.(*rsa.PublicKey)
 	hashInst := hash.New()
-	hashInst.Write(msg)
+	hashInst.Write(plainText)
 	hashByte := hashInst.Sum(nil)
 
 	return rsa.VerifyPKCS1v15(publicKey, hash, hashByte, sign)

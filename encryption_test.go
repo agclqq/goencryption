@@ -1,6 +1,7 @@
 package goencryption
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -44,6 +45,7 @@ func TestEasyEncrypt(t *testing.T) {
 					continue // The block size of AES is 16, and the complement length needs to be 16, while the length of PKCS5 is 8
 				}
 				for _, tv := range transcode {
+					fmt.Println(cv+"/"+mv+"/"+pv+"/"+tv)
 					desSource, err := EasyEncrypt(cv+"/"+mv+"/"+pv+"/"+tv, d["data"], d["key"], d["iv"])
 					if err != nil {
 						t.Fatal(err,cv+"/"+mv+"/"+pv+"/"+tv, d["data"], d["key"], d["iv"])
