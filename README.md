@@ -1,7 +1,7 @@
 # goencryption
 [中文说明](README_ZH.md)
 
-##install
+## install
 ```go
 go get github.com/agclqq/goencryption
 ```
