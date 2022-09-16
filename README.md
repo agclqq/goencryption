@@ -26,6 +26,7 @@ EasyDecrypt(easyType, ciphertext, key, iv)
 ```
 The parameter easyType should have a format like this:`cryptoType/mode/padding`  or `cryptoType/mode/padding/transcode` 
 
+**Note:** Do not use AES and PKCS5 together. The block size of AES is 16, and the complement length needs to be 16, while the length of PKCS5 is 8.
 For example:
 ```go
 EasyEncrypt("des/CFB/Pkcs7/Base64", plaintext, key, iv)
